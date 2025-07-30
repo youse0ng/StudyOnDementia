@@ -1,5 +1,7 @@
 import streamlit as st
 import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import joblib
@@ -58,7 +60,7 @@ class PlotlyVisualization:
             raise AttributeError("Model does not have feature_importances_ attribute")
 
         importances = self.model.feature_importances_
-        feature_names = self.selected_data.columns
+        feature_names = self.model.feature_names_in_
 
         # 중요도 DataFrame 생성
         df_importance = pd.DataFrame({
@@ -88,12 +90,70 @@ class PlotlyVisualization:
             paper_bgcolor='white'
         )
         return fig
+    
+    def Outlier(self):
+        # Z-score 정규화
+        scaler = StandardScaler()
+        self.selected_data = self.selected_data.drop(columns='진단명')
+        columns = self.selected_data.columns
+        self.selected_data = pd.DataFrame(scaler.fit_transform(self.selected_data),columns=columns)
+        # Plotly Boxplot
+        fig = go.Figure()
 
+        # 각 변수에 대해 Boxplot을 추가
+        for col in columns:
+            fig.add_trace(go.Box(
+                y=self.selected_data[col],
+                name=col,
+                boxmean='sd',  # 평균과 표준편차 추가
+                marker=dict(color=np.random.choice(['#FF6347', '#1E90FF', '#32CD32', '#FFD700', '#8A2BE2'])),  # 색상 지정
+                line=dict(width=2),
+                jitter=0.05
+            ))
 
+        # 레이아웃 설정
+        fig.update_layout(
+            title="Numerical Columns - Boxplot (Z-score 정규화)",
+            title_font=dict(size=24),
+            xaxis_title='변수명',
+            yaxis_title='정규화된 값',
+            template='plotly_white',
+            boxmode='group',  # Boxplot을 그룹화
+            height=600,
+            showlegend=True
+        )
+        return fig
+
+    def scatter_plot(self,column1='하루간 평균 MET',column2='활동 점수'):
+        x = self.selected_data[column1]
+        y = self.selected_data[column2]
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=x,
+            y=y,
+            mode='markers+text',  # 점 + 라벨 (옵션)
+            marker=dict(size=10, color='royalblue', line=dict(width=2, color='DarkSlateGrey')),
+            textposition='top center',
+            name='관측치'
+        ))
+
+        fig.update_layout(
+            title='하루간 평균 MET vs 활동 점수',
+            xaxis_title='하루간 평균 MET',
+            yaxis_title='활동 점수',
+            template='plotly_white',
+            height=500
+        )
+        return fig
+    
 def main():
     plotly_vis = PlotlyVisualization('DF.pkl','Selected_DF.pkl','RF_BESTMODEL.pkl')
     st.title("치매 환자 분류를 위한 데이터 분석")
     st.plotly_chart(plotly_vis.correlation(plotly_vis.data),use_container_width=False)
-
+    st.plotly_chart(plotly_vis.feature_importance(),use_container_width=False)
+    st.plotly_chart(plotly_vis.Outlier(),use_container_width=False)
+    st.plotly_chart(plotly_vis.scatter_plot(),use_container_width=False)
 if __name__ == "__main__":
     main()
